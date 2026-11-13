@@ -1,0 +1,22 @@
+name: Build iOS server client
+on:
+  push:
+    branches: ['codex/mobile-packages']
+    paths: ['ios/**', '.github/workflows/ios-package.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ios:
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build unsigned arm64 IPA
+        run: bash ios/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HGhub-iOS-unsigned
+          path: ios/build/HGhub-iOS-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7
