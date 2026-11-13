@@ -320,7 +320,7 @@ public class MainActivity extends Activity {
 
     /** 后台拉 cf.090227.xyz 的优选 IP（别人测好的，不用自己测）。完成后（成功或失败）必调 onDone。 */
     private void fetchPrefIpAsync(final String url, final Runnable onDone) {
-        if (url == null || !isPrefHost(hostOf(url))) { // 非优选域名不需要优选 IP
+        if (url == null || !url.startsWith("https://") || !isPrefHost(hostOf(url))) { // 非优选域名不需要优选 IP
             if (onDone != null) onDone.run();
             return;
         }
@@ -364,7 +364,7 @@ public class MainActivity extends Activity {
             if (!prefIpEnabled || prefIp == null || request == null) return null;
             if (!"GET".equalsIgnoreCase(request.getMethod())) return null;
             android.net.Uri u = request.getUrl();
-            if (u == null || !isPrefHost(u.getHost())) return null;
+            if (u == null || !"https".equalsIgnoreCase(u.getScheme()) || (u.getPort() != -1 && u.getPort() != 443) || !isPrefHost(u.getHost())) return null;
             String host = u.getHost();
             String path = u.getEncodedPath() == null ? "/" : u.getEncodedPath();
             if (u.getEncodedQuery() != null) path += "?" + u.getEncodedQuery();

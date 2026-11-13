@@ -221,6 +221,22 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         qs = urllib.parse.parse_qs(parsed.query)
 
+        downloads = {
+            "/install": ("install.html", "text/html; charset=utf-8"),
+            "/icon180.png": ("icon180.png", "image/png"),
+            "/downloads/HGhub-Android.apk": ("downloads/HGhub-Android.apk", "application/vnd.android.package-archive"),
+            "/downloads/HGhub-iOS-unsigned.ipa": ("downloads/HGhub-iOS-unsigned.ipa", "application/octet-stream"),
+            "/downloads/HGhub-iOS.mobileconfig": ("downloads/HGhub-iOS.mobileconfig", "application/x-apple-aspen-config"),
+        }
+        if path in downloads:
+            filename, content_type = downloads[path]
+            try:
+                with open(os.path.join(BASE_DIR, filename), "rb") as f:
+                    self._send(200, f.read(), content_type)
+            except FileNotFoundError:
+                self._json(404, {"status": 0, "msg": "file not available"})
+            return
+
         if path in ("/", "/index.html"):
             try:
                 with open(INDEX_PATH, "rb") as f:

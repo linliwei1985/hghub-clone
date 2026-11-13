@@ -29,7 +29,7 @@ fi
 command -v openssl >/dev/null || { echo "找不到 openssl，封面解密需要它" >&2; exit 1; }
 
 echo "== 1/4 检查 8080 播放代理"
-if ! curl -fsS "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
+if ! curl -fsS --max-time 10 "$PROXY_BASE/health" >/dev/null 2>&1; then
   echo "8080 代理没在跑！先执行：bash scripts/deploy-proxy.sh" >&2
   exit 1
 fi
@@ -39,6 +39,10 @@ echo "== 2/4 安装网页到 $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
 cp "$REPO_DIR/web/index.html" "$INSTALL_DIR/index.html"
 cp "$REPO_DIR/web/server.py" "$INSTALL_DIR/server.py"
+cp "$REPO_DIR/web/hls.min.js" "$INSTALL_DIR/hls.min.js"
+for asset in install.html icon180.png; do
+  if [ -f "$REPO_DIR/web/$asset" ]; then cp "$REPO_DIR/web/$asset" "$INSTALL_DIR/$asset"; fi
+done
 python3 -m py_compile "$INSTALL_DIR/server.py" && echo "   server.py 语法检查通过"
 
 echo "== 3/4 写 systemd 服务（开机自启）"
@@ -62,7 +66,8 @@ EOF
 
 echo "== 4/4 启动并验证"
 systemctl daemon-reload
-systemctl enable --now hghub-web
+systemctl enable hghub-web
+systemctl restart hghub-web
 sleep 2
 systemctl is-active --quiet hghub-web || {
   echo "服务没有起来，看日志：" >&2
@@ -73,7 +78,7 @@ echo "   首页："
 curl -fsS "http://127.0.0.1:$PORT/" -o /dev/null -w "   HTTP %{http_code}\n"
 echo "   /api/play 反代："
 curl -fsS -X POST -H 'Content-Type: application/json' -d '{"id":12,"ep":1}' \
-  "http://127.0.0.1:$PORT/api/play" | head -c 200
+  "http://127.0.0.1:$PORT/api/play" | python3 -c 'import sys; print(sys.stdin.read()[:200])'
 echo
 echo "部署完成：网页地址 http://<你的服务器IP>:$PORT/"
 echo "日志：journalctl -u hghub-web -f"

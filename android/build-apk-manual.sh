@@ -3,8 +3,8 @@
 #
 # Requires: JDK 17 and Android SDK with platforms;android-34 and
 # build-tools;34.0.0. Set JAVA_HOME and ANDROID_HOME, or edit the defaults.
-# Produces: HGhub-1.2.0.8.apk (debug-signed) in the current directory.
-# 1.2.0.8：构建时把 web/index.html + web/hls.min.js 同步进
+# Produces: HGhub-1.2.0.9.apk (debug-signed) in the current directory.
+# 1.2.0.9：构建时把 web/index.html + web/hls.min.js 同步进
 # app/src/main/assets/hghub/，打进 APK（本地页面秒开，API 仍走服务器）。
 set -euo pipefail
 
@@ -36,8 +36,8 @@ public final class BuildConfig {
     public static final boolean DEBUG = true;
     public static final String APPLICATION_ID = "com.hghub.huangguo";
     public static final String BUILD_TYPE = "debug";
-    public static final int VERSION_CODE = 1208;
-    public static final String VERSION_NAME = "1.2.0.8";
+    public static final int VERSION_CODE = 1209;
+    public static final String VERSION_NAME = "1.2.0.9";
     // 构建时由环境变量 APP_URL 注入；为空则首次打开时在应用内输入一次。
     public static final String APP_URL = "$APP_URL_JAVA";
     // hg 域名打不开时回退的直连地址，同样构建时注入，仓库里不写服务器 IP。
@@ -77,8 +77,14 @@ if [ ! -f "$KEYSTORE" ]; then
 fi
 zipalign -f -p 4 "$W/app-with-dex.apk" "$W/app-aligned.apk"
 apksigner sign --ks "$KEYSTORE" --ks-pass pass:android --key-pass pass:android \
-  --out "$ROOT/HGhub-1.2.0.8.apk" "$W/app-aligned.apk"
-apksigner verify "$ROOT/HGhub-1.2.0.8.apk"
-aapt2 dump badging "$ROOT/HGhub-1.2.0.8.apk" | grep -E "package:|sdkVersion|targetSdkVersion|launchable-activity"
-ls -la "$ROOT/HGhub-1.2.0.8.apk"
-unzip -l "$ROOT/HGhub-1.2.0.8.apk" | grep -E "assets/|classes.dex"
+  --out "$ROOT/HGhub-1.2.0.9.apk" "$W/app-aligned.apk"
+apksigner verify "$ROOT/HGhub-1.2.0.9.apk"
+aapt2 dump badging "$ROOT/HGhub-1.2.0.9.apk" | grep -E "package:|sdkVersion|targetSdkVersion|launchable-activity"
+ls -la "$ROOT/HGhub-1.2.0.9.apk"
+python3 - "$ROOT/HGhub-1.2.0.9.apk" <<'VERIFY'
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as z:
+    assert z.testzip() is None
+    for name in ('classes.dex', 'assets/hghub/index.html', 'assets/hghub/hls.min.js'):
+        print(name, z.getinfo(name).file_size)
+VERIFY

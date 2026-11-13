@@ -43,6 +43,7 @@ Restart=always
 RestartSec=5
 # 代理只监听 8080，不碰 80（Xray）/ 443（MTProto）
 Environment=PORT=$PORT
+Environment=HOST=127.0.0.1
 
 [Install]
 WantedBy=multi-user.target
@@ -50,7 +51,8 @@ EOF
 
 echo "== 3/4 启动服务"
 systemctl daemon-reload
-systemctl enable --now hghub-proxy
+systemctl enable hghub-proxy
+systemctl restart hghub-proxy
 sleep 2
 systemctl is-active --quiet hghub-proxy || {
   echo "服务没有起来，看日志：" >&2
@@ -64,6 +66,6 @@ echo "   GET /health："
 curl -fsS "http://127.0.0.1:$PORT/health" && echo
 echo "   POST /api/play {id:12, ep:1}（取《神瞳觉醒》第 1 集播放地址）："
 curl -fsS -X POST -H 'Content-Type: application/json' -d '{"id":12,"ep":1}' \
-  "http://127.0.0.1:$PORT/api/play" | head -c 300
+  "http://127.0.0.1:$PORT/api/play" | python3 -c 'import sys; print(sys.stdin.read()[:300])'
 echo
 echo "部署完成：代理跑在 0.0.0.0:$PORT，日志：journalctl -u hghub-proxy -f"

@@ -48,6 +48,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import re
 
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8080"))
@@ -73,6 +74,27 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()],
 )
 log = logging.getLogger("hghub-proxy")
+
+
+def _rewrite_manifest(body: bytes, base_url: str) -> bytes:
+    """Keep native HLS clients on the same origin for every nested resource."""
+    def proxied(uri):
+        absolute = urllib.parse.urljoin(base_url, uri)
+        if not absolute.startswith(("https://", "http://")):
+            return uri
+        path = urllib.parse.urlsplit(absolute).path.lower()
+        kind = "m3u8" if path.endswith(".m3u8") else "ts"
+        if path.endswith(".key") or "crypt.key" in path:
+            kind = "key"
+        return "/proxy/" + kind + "?url=" + urllib.parse.quote(absolute, safe="")
+    lines = []
+    for line in body.decode("utf-8-sig").splitlines():
+        if line.startswith("#"):
+            line = re.sub(r'URI="([^"]+)"', lambda m: 'URI="' + proxied(m.group(1)) + '"', line)
+        elif line.strip():
+            line = proxied(line.strip())
+        lines.append(line)
+    return ("\n".join(lines) + "\n").encode("utf-8")
 
 
 def _host_allowed(host: str) -> bool:
@@ -178,6 +200,8 @@ class Handler(BaseHTTPRequestHandler):
         url_path = urllib.parse.urlsplit(url).path.lower()
         if url_path.endswith(".m3u8") or "mpegurl" in ctype or "x-mpegurl" in ctype:
             ctype = "application/vnd.apple.mpegurl"
+            if status == 200 and body.lstrip().startswith(b"#EXTM3U"):
+                body = _rewrite_manifest(body, url)
         elif url_path.endswith(".ts"):
             ctype = "video/MP2T"
         elif url_path.endswith(".key") or "crypt.key" in url:

@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>HGhub · 短剧</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="HGhub">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="/icon180.png">
 <script src="/hls.min.js"></script>
 <script>if(!window.Hls){var _h=document.createElement("script");_h.src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js";document.head.appendChild(_h);}</script>
 <style>
@@ -333,9 +337,9 @@ if (typeof window !== 'undefined' && !window._alignShareBound){
   window.addEventListener('resize', function(){ setTimeout(alignShare, 120); });
 }
 var APP_VERSION = '1.2.0.8';
-var SHARE_BASE = 'https://sp1.45678.eu.org/';
+var SHARE_BASE = location.origin + '/';
 /* 1.2.0.6：分享面板里的“下载 App”地址。发新版时只改这一处常量 + 各处版本号。 */
-var APK_RELEASE_URL = 'https://github.com/vps1986/hghub-clone/releases/download/v1.2.0.8/HGhub-1.2.0.8.apk';
+var APK_RELEASE_URL = location.origin + '/downloads/HGhub-Android.apk';
 var $ = function(s){ return document.querySelector(s); };
 var $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
 var store = {
@@ -343,6 +347,7 @@ var store = {
   set: function(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
 };
 var feedItems = [], catItems = [], curVideo = null, curEp = 1, curStreams = {}, curDetail = null, hls = null;
+if (!store.get('hg_proxy_v2', false)){ store.set('hg_line', 'proxy'); store.set('hg_proxy_v2', true); }
 var playCache = {}; /* "id:ep" -> streams，直连/代理共用，预加载下一集用 */
 var preloadSet = {};
 function playKey(id, ep){ return id + ':' + ep; }
@@ -651,10 +656,10 @@ async function activateSlide(el, id){
     attachSlideVideo(el, id, src);
   } catch(e){}
 }
-function attachSlideVideo(el, id, src){
+function attachSlideVideo(el, id, src, tried){
   var v = el.querySelector('video.bgvid');
   if (!v) return;
-  var line = store.get('hg_line', 'direct');
+  var line = store.get('hg_line', 'proxy');
   var url = (line === 'direct') ? src : '/proxy/m3u8?url=' + encodeURIComponent(src);
   if (window.Hls && Hls.isSupported()){
     if (slideHls[id]) { try { slideHls[id].destroy(); } catch(e){} }
@@ -663,14 +668,23 @@ function attachSlideVideo(el, id, src){
     h.loadSource(url);
     h.attachMedia(v);
     h.on(Hls.Events.ERROR, function(ev, data){
-      if (data && data.fatal){
+      if (data && data.fatal && !tried){
         var next = (line === 'direct') ? 'proxy' : 'direct';
         store.set('hg_line', next);
         if (slideHls[id]) { try { slideHls[id].destroy(); } catch(e){} delete slideHls[id]; }
-        if (activeSlideId === id) attachSlideVideo(el, id, src);
+        if (activeSlideId === id) attachSlideVideo(el, id, src, true);
       }
     });
-  } else if (v.canPlayType('application/vnd.apple.mpegurl')) { v.src = url; }
+  } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+    v.onerror = function(){
+      v.onerror = null;
+      if (!tried && activeSlideId === id){
+        store.set('hg_line', line === 'direct' ? 'proxy' : 'direct');
+        attachSlideVideo(el, id, src, true);
+      }
+    };
+    v.src = url;
+  }
   var p = v.play();
   if (p && p.catch) p.catch(function(){ showCenterFlash(el, '▶'); });
 }
@@ -1177,7 +1191,7 @@ async function playVideo(id, ep){
 }
 function setPlayerSource(src, tried){
   var v = $('#video');
-  var line = store.get('hg_line', 'direct'); /* 1.2.0.2 默认直连 CDN 起播快，代理作备用 */
+  var line = store.get('hg_line', 'proxy'); /* 1.2.0.2 默认直连 CDN 起播快，代理作备用 */
   var url = (line === 'direct') ? src : '/proxy/m3u8?url=' + encodeURIComponent(src);
   if (window.Hls && Hls.isSupported()){
     if (hls) { try { hls.destroy(); } catch(e){} }
@@ -1396,7 +1410,7 @@ function renderMe(){
   var u = store.get('hg_user', null);
   var fav = store.get('hg_fav', []);
   var hist = store.get('hg_history', []);
-  var line = store.get('hg_line', 'direct');
+  var line = store.get('hg_line', 'proxy');
   var html = '';
   if (!u){
     html += '<div class="mebox"><h3>登录 / 注册</h3>' +
@@ -1416,7 +1430,7 @@ function renderMe(){
     }).join('') : '<p class="hint">还没有观看记录</p>') + '</div>';
   html += '<div class="mebox"><h3>设置</h3>' +
     '<label class="hint">播放线路</label>' +
-    '<select id="lineSel"><option value="direct"' + (line === 'direct' ? ' selected' : '') + '>线路 1：直连 CDN（默认，最快）</option><option value="proxy"' + (line === 'proxy' ? ' selected' : '') + '>线路 2：8080 代理（备用）</option></select>' +
+    '<select id="lineSel"><option value="direct"' + (line === 'direct' ? ' selected' : '') + '>线路 1：直连 CDN</option><option value="proxy"' + (line === 'proxy' ? ' selected' : '') + '>线路 2：服务器代理（默认）</option></select>' +
     '<label class="hint" style="margin-top:10px">优选 IP（用别人测好的 CF 优选 IP，不用自己测）</label>' +
     '<label class="hint"><input type="checkbox" id="prefIpOn" ' + (store.get('hg_prefip', true) ? 'checked' : '') + '> 开启优选 IP</label>' +
     '<select id="prefIpIsp"><option value="auto"' + (store.get('hg_pref_isp', 'auto') === 'auto' ? ' selected' : '') + '>自动</option><option value="ct"' + (store.get('hg_pref_isp', 'auto') === 'ct' ? ' selected' : '') + '>电信</option><option value="cu"' + (store.get('hg_pref_isp', 'auto') === 'cu' ? ' selected' : '') + '>联通</option><option value="cmcc"' + (store.get('hg_pref_isp', 'auto') === 'cmcc' ? ' selected' : '') + '>移动</option></select>' +
