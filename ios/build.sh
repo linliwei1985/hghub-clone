@@ -6,7 +6,7 @@ APP="$OUT/Payload/HGhub.app"
 mkdir -p "$APP"
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 xcrun --sdk iphoneos swiftc "$ROOT/App.swift" -o "$APP/HGhub" \
-  -sdk "$SDK" -target arm64-apple-ios15.0 -O -whole-module-optimization \
+  -sdk "$SDK" -target arm64-apple-ios15.0 -parse-as-library -O -whole-module-optimization \
   -framework UIKit -framework WebKit -framework Foundation \
   -Xlinker -rpath -Xlinker @executable_path/Frameworks
 export APP
